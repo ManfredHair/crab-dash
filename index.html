@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crab Dash - Beach Olympics</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(180deg, #87CEEB 0%, #1E90FF 100%);
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background: linear-gradient(0deg, #F5DEB3 0%, #F4A460 100%);
+            border: 10px solid #8B4513;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+        }
+        
+        .screen-content {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #FF6347;
+            font-size: 50px;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+        
+        button {
+            background: #FF6347;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            box-shadow: 0 5px #B22222;
+            transition: all 0.1s;
+        }
+        
+        button:hover {
+            background: #FF7F50;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            box-shadow: 0 2px #B22222;
+            transform: translateY(3px);
+        }
+        
+        #score-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #8B4513;
+            text-shadow: 1px 1px 2px white;
+        }
+        
+        #controls {
+            margin-top: 20px;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        
+        .water {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(0deg, #1E90FF 0%, #87CEEB 100%);
+            opacity: 0.7;
+        }
+        
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.8;
+        }
+        
+        #power-up-indicator {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            font-size: 18px;
+            color: #8B4513;
+            text-shadow: 1px 1px 2px white;
+        }
+        
+        #turbo-meter {
+            position: absolute;
+            top: 90px;
+            left: 10px;
+            width: 150px;
+            height: 20px;
+            background: #ddd;
+            border: 2px solid #8B4513;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #turbo-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #FF6347, #FF4500);
+            transform-origin: left;
+            transform: scaleX(1);
+            transition: transform 0.3s linear;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="water"></div>
+        <div id="score-display">Score: 0</div>
+        <div id="power-up-indicator"></div>
+        <div id="turbo-meter"><div id="turbo-fill"></div></div>
+        
+        <div id="start-screen">
+            <div class="screen-content">
+                <h1>🦀 Crab Dash 🦀</h1>
+                <h2>Beach Olympics</h2>
+                <div id="controls">
+                    <p>🎮 Use Arrow Keys to move your crab</p>
+                    <p>⚡ Press SHIFT for Turbo Dash</p>
+                    <p>💃 Press SPACE for Random Crab Dance</p>
+                </div>
+                <button id="start-button">Start Game</button>
+            </div>
+        </div>
+        
+        <div id="game-over-screen" style="display: none;">
+            <div class="screen-content">
+                <h1>Game Over!</h1>
+                <h2 id="final-score">Score: 0</h2>
+                <button id="restart-button">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 500;
+        const CRAB_WIDTH = 60;
+        const CRAB_HEIGHT = 40;
+        const OBSTACLE_SPEED_MIN = 3;
+        const OBSTACLE_SPEED_MAX = 7;
+        const OBSTACLE_SPAWN_INTERVAL_MIN = 800;
+        const OBSTACLE_SPAWN_INTERVAL_MAX = 2000;
+        const POWER_UP_CHANCE = 0.15;
+        const POWER_UP_DURATION = 10000;
+        const TURBO_MAX_DURATION = 3000;
+        const TURBO_COOLDOWN = 5000;
+        const DANCE_DURATION = 1000;
+        
+        // Game variables
+        let gameContainer = document.getElementById('game-container');
+        let startScreen = document.getElementById('start-screen');
+        let gameOverScreen = document.getElementById('game-over-screen');
+        let startButton = document.getElementById('start-button');
+        let restartButton = document.getElementById('restart-button');
+        let scoreDisplay = document.getElementById('score-display');
+        let finalScoreDisplay = document.getElementById('final-score');
+        let powerUpIndicator = document.getElementById('power-up-indicator');
+        let turboMeter = document.getElementById('turbo-meter');
+        let turboFill = document.getElementById('turbo-fill');
+        
+        let crab;
+        let obstacles = [];
+        let powerUps = [];
+        let score = 0;
+        let gameRunning = false;
+        let gameLoop;
+        let obstacleSpawnTimer;
+        let activePowerUp = null;
+        let powerUpTimer = null;
+        let turboActive = false;
+        let turboCooldown = false;
+        let turboTimer = null;
+        let turboCooldownTimer = null;
+        let danceActive = false;
+        let danceTimer = null;
+        let keysPressed = {};
+        
+        // Game initialization
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            keysPressed[e.key] = true;
+            
+            // Turbo dash (Shift)
+            if (e.key === 'Shift' && gameRunning && !turboActive && !turboCooldown) {
+                activateTurbo();
+            }
+            
+            // Random dance (Space)
+            if (e.key === ' ' && gameRunning && !danceActive) {
+                performRandomDance();
+            }
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            keysPressed[e.key] = false;
+        });
+        
+        // Create decorative clouds
+        function createClouds() {
+            for (let i = 0; i < 5; i++) {
+                createCloud();
+            }
+        }
+        
+        function createCloud() {
+            const cloud = document.createElement('div');
+            cloud.className = 'cloud';
+            
+            const size = Math.random() * 100 + 50;
+            const top = Math.random() * 100;
+            const left = Math.random() * GAME_WIDTH;
+            
+            cloud.style.width = size + 'px';
+            cloud.style.height = size / 2 + 'px';
+            cloud.style.top = top + 'px';
+            cloud.style.left = left + 'px';
+            
+            gameContainer.appendChild(cloud);
+            
+            // Add some "puffs" to make it cloud-like
+            for (let i = 0; i < 3; i++) {
+                const puff = document.createElement('div');
+                puff.className = 'cloud';
+                
+                const puffSize = size * (0.6 + Math.random() * 0.4);
+                const puffTop = Math.random() * 20 - 10;
+                const puffLeft = Math.random() * size - size / 4;
+                
+                puff.style.width = puffSize + 'px';
+                puff.style.height = puffSize / 2 + 'px';
+                puff.style.top = puffTop + 'px';
+                puff.style.left = puffLeft + 'px';
+                
+                cloud.appendChild(puff);
+            }
+        }
+        
+        function startGame() {
+            // Reset game state
+            score = 0;
+            obstacles.forEach(obstacle => obstacle.remove());
+            obstacles = [];
+            powerUps.forEach(powerUp => powerUp.remove());
+            powerUps = [];
+            
+            if (crab) crab.remove();
+            
+            if (activePowerUp) {
+                clearTimeout(powerUpTimer);
+                activePowerUp = null;
+            }
+            
+            if (turboActive) {
+                clearTimeout(turboTimer);
+                turboActive = false;
+            }
+            
+            if (turboCooldown) {
+                clearTimeout(turboCooldownTimer);
+                turboCooldown = false;
+            }
+            
+            if (danceActive) {
+                clearTimeout(danceTimer);
+                danceActive = false;
+            }
+            
+            // Update displays
+            scoreDisplay.textContent = 'Score: 0';
+            powerUpIndicator.textContent = '';
+            turboFill.style.transform = 'scaleX(1)';
+            
+            // Create player crab
+            crab = document.createElement('div');
+            crab.style.position = 'absolute';
+            crab.style.width = CRAB_WIDTH + 'px';
+            crab.style.height = CRAB_HEIGHT + 'px';
+            crab.style.left = '100px';
+            crab.style.top = (GAME_HEIGHT - CRAB_HEIGHT - 100) + 'px';
+            crab.style.backgroundImage = 'url("/api/placeholder/60/40")';
+            crab.style.backgroundSize = 'contain';
+            crab.style.backgroundRepeat = 'no-repeat';
+            crab.style.zIndex = '10';
+            crab.textContent = '🦀';
+            crab.style.fontSize = '40px';
+            crab.style.display = 'flex';
+            crab.style.justifyContent = 'center';
+            crab.style.alignItems = 'center';
+            gameContainer.appendChild(crab);
+            
+            // Hide start screen and show game
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            // Start game loops
+            gameRunning = true;
+            gameLoop = setInterval(updateGame, 20);
+            spawnObstacle();
+            scheduleNextObstacle();
+            
+            // Create decorative clouds
+            createClouds();
+        }
+        
+        function endGame() {
+            gameRunning = false;
+            clearInterval(gameLoop);
+            clearTimeout(obstacleSpawnTimer);
+            
+            finalScoreDisplay.textContent = 'Score: ' + score;
+            gameOverScreen.style.display = 'flex';
+        }
+        
+        function updateGame() {
+            if (!gameRunning) return;
+            
+            // Move the crab based on key presses
+            const crabSpeed = turboActive ? 10 : 5;
+            
+            if (keysPressed['ArrowLeft']) {
+                let newLeft = parseInt(crab.style.left) - crabSpeed;
+                crab.style.left = Math.max(0, newLeft) + 'px';
+                crab.style.transform = 'scaleX(-1)';
+            }
+            
+            if (keysPressed['ArrowRight']) {
+                let newLeft = parseInt(crab.style.left) + crabSpeed;
+                crab.style.left = Math.min(GAME_WIDTH - CRAB_WIDTH, newLeft) + 'px';
+                crab.style.transform = 'scaleX(1)';
+            }
+            
+            if (keysPressed['ArrowUp']) {
+                let newTop = parseInt(crab.style.top) - crabSpeed;
+                crab.style.top = Math.max(0, newTop) + 'px';
+            }
+            
+            if (keysPressed['ArrowDown']) {
+                let newTop = parseInt(crab.style.top) + crabSpeed;
+                crab.style.top = Math.min(GAME_HEIGHT - CRAB_HEIGHT - 80, newTop) + 'px';
+            }
+            
+            // Move obstacles
+            moveObstacles();
+            
+            // Move power-ups
+            movePowerUps();
+            
+            // Check for collisions
+            checkCollisions();
+            
+            // Increase score over time
+            if (gameRunning && !danceActive) {
+                score += 1;
+                scoreDisplay.textContent = 'Score: ' + score;
+            }
+        }
+        
+        function spawnObstacle() {
+            if (!gameRunning) return;
+            
+            // Create a new obstacle
+            const obstacle = document.createElement('div');
+            obstacle.className = 'obstacle';
+            obstacle.style.position = 'absolute';
+            
+            // Random obstacle type (beach ball, seagull, or jellyfish)
+            const obstacleTypes = ['🏐', '🐦', '🪼'];
+            const obstacleType = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+            obstacle.textContent = obstacleType;
+            obstacle.style.fontSize = '40px';
+            
+            // Set obstacle size and position
+            let obstacleWidth, obstacleHeight;
+            
+            if (obstacleType === '🏐') {
+                obstacleWidth = 40;
+                obstacleHeight = 40;
+            } else if (obstacleType === '🐦') {
+                obstacleWidth = 50;
+                obstacleHeight = 30;
+            } else {
+                obstacleWidth = 40;
+                obstacleHeight = 50;
+            }
+            
+            obstacle.style.width = obstacleWidth + 'px';
+            obstacle.style.height = obstacleHeight + 'px';
+            obstacle.style.display = 'flex';
+            obstacle.style.justifyContent = 'center';
+            obstacle.style.alignItems = 'center';
+            
+            // Different spawn behavior for different obstacles
+            let speed, top;
+            
+            if (obstacleType === '🏐') { // Beach ball bounces along ground
+                top = GAME_HEIGHT - obstacleHeight - 80 - Math.random() * 100;
+                speed = OBSTACLE_SPEED_MIN + Math.random() * (OBSTACLE_SPEED_MAX - OBSTACLE_SPEED_MIN);
+                obstacle.dataset.verticalSpeed = -5 - Math.random() * 5;
+                obstacle.dataset.bounce = 'true';
+            } else if (obstacleType === '🐦') { // Seagull flies higher
+                top = Math.random() * (GAME_HEIGHT / 2);
+                speed = OBSTACLE_SPEED_MIN + Math.random() * (OBSTACLE_SPEED_MAX - OBSTACLE_SPEED_MIN);
+                obstacle.dataset.verticalSpeed = Math.random() * 2 - 1;
+            } else { // Jellyfish moves in water
+                top = GAME_HEIGHT - obstacleHeight - 50 - Math.random() * 30;
+                speed = OBSTACLE_SPEED_MIN + Math.random() * (OBSTACLE_SPEED_MAX - OBSTACLE_SPEED_MIN) * 0.7;
+                obstacle.dataset.verticalSpeed = Math.random() * 1 - 0.5;
+            }
+            
+            obstacle.style.left = GAME_WIDTH + 'px';
+            obstacle.style.top = top + 'px';
+            
+            // Store speed in dataset for animation
+            obstacle.dataset.speed = speed;
+            obstacle.dataset.type = obstacleType;
+            
+            gameContainer.appendChild(obstacle);
+            obstacles.push(obstacle);
+            
+            // Randomly spawn power-up
+            if (Math.random() < POWER_UP_CHANCE) {
+                spawnPowerUp();
+            }
+        }
+        
+        function scheduleNextObstacle() {
+            const spawnDelay = OBSTACLE_SPAWN_INTERVAL_MIN + 
+                              Math.random() * (OBSTACLE_SPAWN_INTERVAL_MAX - OBSTACLE_SPAWN_INTERVAL_MIN);
+            obstacleSpawnTimer = setTimeout(() => {
+                spawnObstacle();
+                scheduleNextObstacle();
+            }, spawnDelay);
+        }
+        
+        function moveObstacles() {
+            obstacles.forEach((obstacle, index) => {
+                const speed = parseFloat(obstacle.dataset.speed);
+                let left = parseFloat(obstacle.style.left) - speed;
+                obstacle.style.left = left + 'px';
+                
+                // Handle vertical movement
+                let top = parseFloat(obstacle.style.top);
+                let verticalSpeed = parseFloat(obstacle.dataset.verticalSpeed);
+                
+                // For bouncing beach balls
+                if (obstacle.dataset.bounce === 'true') {
+                    top += verticalSpeed;
+                    obstacle.dataset.verticalSpeed = parseFloat(obstacle.dataset.verticalSpeed) + 0.2; // Gravity
+                    
+                    // Bounce off bottom
+                    if (top > GAME_HEIGHT - parseFloat(obstacle.style.height) - 80) {
+                        top = GAME_HEIGHT - parseFloat(obstacle.style.height) - 80;
+                        obstacle.dataset.verticalSpeed = parseFloat(obstacle.dataset.verticalSpeed) * -0.8;
+                    }
+                } else {
+                    // For seagulls and jellyfish - gentle movements
+                    top += verticalSpeed;
+                    
+                    // Keep within bounds
+                    if (top < 0 || top > GAME_HEIGHT - parseFloat(obstacle.style.height) - 80) {
+                        obstacle.dataset.verticalSpeed = -parseFloat(obstacle.dataset.verticalSpeed);
+                        top += parseFloat(obstacle.dataset.verticalSpeed);
+                    }
+                }
+                
+                obstacle.style.top = top + 'px';
+                
+                // Remove obstacles that are off-screen
+                if (left < -50) {
+                    obstacle.remove();
+                    obstacles.splice(index, 1);
+                }
+            });
+        }
+        
+        function spawnPowerUp() {
+            if (!gameRunning) return;
+            
+            // Create a new power-up
+            const powerUp = document.createElement('div');
+            powerUp.className = 'powerup';
+            powerUp.style.position = 'absolute';
+            
+            // Random power-up type (sunglasses or coconut drink)
+            const powerUpTypes = ['🕶️', '🥥'];
+            const powerUpType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+            powerUp.textContent = powerUpType;
+            powerUp.style.fontSize = '30px';
+            
+            // Set power-up size and position
+            const powerUpWidth = 30;
+            const powerUpHeight = 30;
+            
+            powerUp.style.width = powerUpWidth + 'px';
+            powerUp.style.height = powerUpHeight + 'px';
+            powerUp.style.display = 'flex';
+            powerUp.style.justifyContent = 'center';
+            powerUp.style.alignItems = 'center';
+            
+            // Position somewhere on screen
+            const top = 50 + Math.random() * (GAME_HEIGHT - powerUpHeight - 150);
+            powerUp.style.left = GAME_WIDTH + 'px';
+            powerUp.style.top = top + 'px';
+            
+            // Store movement data
+            const speed = 3 + Math.random() * 2;
+            powerUp.dataset.speed = speed;
+            powerUp.dataset.type = powerUpType;
+            
+            gameContainer.appendChild(powerUp);
+            powerUps.push(powerUp);
+        }
+        
+        function movePowerUps() {
+            powerUps.forEach((powerUp, index) => {
+                const speed = parseFloat(powerUp.dataset.speed);
+                let left = parseFloat(powerUp.style.left) - speed;
+                powerUp.style.left = left + 'px';
+                
+                // Add a gentle bobbing motion
+                const bobAmount = Math.sin(Date.now() / 300) * 3;
+                powerUp.style.marginTop = bobAmount + 'px';
+                
+                // Remove power-ups that are off-screen
+                if (left < -50) {
+                    powerUp.remove();
+                    powerUps.splice(index, 1);
+                }
+            });
+        }
+        
+        function checkCollisions() {
+            if (!gameRunning) return;
+            
+            const crabRect = {
+                x: parseInt(crab.style.left),
+                y: parseInt(crab.style.top),
+                width: CRAB_WIDTH,
+                height: CRAB_HEIGHT
+            };
+            
+            // Check collisions with obstacles
+            obstacles.forEach((obstacle, index) => {
+                const obstacleRect = {
+                    x: parseInt(obstacle.style.left),
+                    y: parseInt(obstacle.style.top),
+                    width: parseInt(obstacle.style.width),
+                    height: parseInt(obstacle.style.height)
+                };
+                
+                if (isColliding(crabRect, obstacleRect)) {
+                    if (activePowerUp === '🕶️') {
+                        // With sunglasses, destroy obstacle instead of dying
+                        obstacle.remove();
+                        obstacles.splice(index, 1);
+                        score += 50;
+                        showFloatingText('+50', obstacleRect.x, obstacleRect.y);
+                    } else {
+                        endGame();
+                    }
+                }
+            });
+            
+            // Check collisions with power-ups
+            powerUps.forEach((powerUp, index) => {
+                const powerUpRect = {
+                    x: parseInt(powerUp.style.left),
+                    y: parseInt(powerUp.style.top),
+                    width: parseInt(powerUp.style.width),
+                    height: parseInt(powerUp.style.height)
+                };
+                
+                if (isColliding(crabRect, powerUpRect)) {
+                    // Collect power-up
+                    const powerUpType = powerUp.dataset.type;
+                    activatePowerUp(powerUpType);
+                    
+                    powerUp.remove();
+                    powerUps.splice(index, 1);
+                    
+                    score += 100;
+                    showFloatingText('+100', powerUpRect.x, powerUpRect.y);
+                }
+            });
+        }
+        
+        function isColliding(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+        
+        function activatePowerUp(type) {
+            // Clear any existing power-up
+            if (activePowerUp) {
+                clearTimeout(powerUpTimer);
+            }
+            
+            activePowerUp = type;
+            
+            // Apply power-up effect
+            if (type === '🕶️') {
+                // Sunglasses - immunity to obstacles
+                powerUpIndicator.textContent = '🕶️ Obstacle Immunity!';
+                crab.style.filter = 'drop-shadow(0 0 10px gold)';
+            } else if (type === '🥥') {
+                // Coconut drink - double points
+                powerUpIndicator.textContent = '🥥 Double Points!';
+                crab.style.filter = 'drop-shadow(0 0 10px lime)';
+            }
+            
+            // Set duration
+            powerUpTimer = setTimeout(() => {
+                deactivatePowerUp();
+            }, POWER_UP_DURATION);
+        }
+        
+        function deactivatePowerUp() {
+            activePowerUp = null;
+            powerUpIndicator.textContent = '';
+            crab.style.filter = 'none';
+        }
+        
+        function activateTurbo() {
+            if (turboCooldown) return;
+            
+            turboActive = true;
+            crab.style.filter = 'drop-shadow(0 0 10px cyan)';
+            
+            // Update turbo meter visual
+            const updateTurboMeter = (percentage) => {
+                turboFill.style.transform = `scaleX(${percentage})`;
+            };
+            
+            // Create animation for depleting turbo
+            let turboRemaining = TURBO_MAX_DURATION;
+            const turboInterval = setInterval(() => {
+                turboRemaining -= 100;
+                const percentage = Math.max(0, turboRemaining / TURBO_MAX_DURATION);
+                updateTurboMeter(percentage);
+                
+                if (turboRemaining <= 0) {
+                    clearInterval(turboInterval);
+                }
+            }, 100);
+            
+            // Set duration
+            turboTimer = setTimeout(() => {
+                clearInterval(turboInterval);
+                turboActive = false;
+                crab.style.filter = activePowerUp ? 
+                    (activePowerUp === '🕶️' ? 'drop-shadow(0 0 10px gold)' : 'drop-shadow(0 0 10px lime)') : 
+                    'none';
+                
+                // Set cooldown
+                turboCooldown = true;
+                turboCooldownTimer = setTimeout(() => {
+                    turboCooldown = false;
+                    updateTurboMeter(1);
+                }, TURBO_COOLDOWN);
+            }, TURBO_MAX_DURATION);
+        }
+        
+        function performRandomDance() {
+            if (danceActive) return;
+            
+            danceActive = true;
+            
+            // Random dance animations
+            const dances = [
+                // Spin
+                () => {
+                    let rotation = 0;
+                    const spinInterval = setInterval(() => {
+                        rotation += 36;
+                        crab.style.transform = `rotate(${rotation}deg)`;
+                        
+                        if (rotation >= 360) {
+                            clearInterval(spinInterval);
+                            crab.style.transform = 'rotate(0deg)';
+                        }
+                    }, 100);
+                },
+                
+                // Bounce
+                () => {
+                    const originalTop = parseInt(crab.style.top);
+                    let bouncePhase = 0;
+                    
+                    const bounceInterval = setInterval(() => {
+                        bouncePhase += 1;
+                        const offset = Math.sin(bouncePhase * 0.5) * 20;
+                        crab.style.top = (originalTop - offset) + 'px';
+                        
+                        if (bouncePhase >= 12) {
+                            clearInterval(bounceInterval);
+                            crab.style.top = originalTop + 'px';
+                        }
+                    }, 80);
+                },
+                
+                // Shake
+                () => {
+                    const originalLeft = parseInt(crab.style.left);
+                    let shakePhase = 0;
+                    
+                    const shakeInterval = setInterval(() => {
+                        shakePhase += 1;
+                        const offset = (Math.random() - 0.5) * 10;
+                        crab.style.left = (originalLeft + offset) + 'px';
+                        
+                        if (shakePhase >= 15) {
+                            clearInterval(shakeInterval);
+                            crab.style.left = originalLeft + 'px';
+                        }
+                    }, 50);
+                },
+                
+                // Grow and shrink
+                () => {
+                    let scalePhase = 0;
+                    
+                    const scaleInterval = setInterval(() => {
+                        scalePhase += 1;
+                        const scale = 1 + Math.sin(scalePhase * 0.5) * 0.3;
+                        crab.style.transform = `scale(${scale})`;
+                        
+                        if (scalePhase >= 12) {
+                            clearInterval(scaleInterval);
+                            crab.style.transform = 'scale(1)';
+                        }
+                    }, 80);
+                }
+            ];
+            
+            // Choose random dance
+            const randomDance = dances[Math.floor(Math.random() * dances.length)];
+            randomDance();
+            
+            // Award points for dancing
+            score += 25;
+            showFloatingText('+25', parseInt(crab.style.left), parseInt(crab.style.top) - 30);
+            
+            // End dance after duration
+            danceTimer = setTimeout(() => {
+                danceActive = false;
+            }, DANCE_DURATION);
+        }
+        
+        function showFloatingText(text, x, y) {
+            const floatingText = document.createElement('div');
+            floatingText.textContent = text;
+            floatingText.style.position = 'absolute';
+            floatingText.style.left = x + 'px';
+            floatingText.style.top = y + 'px';
+            floatingText.style.color = '#FF6347';
+            floatingText.style.fontSize = '24px';
+            floatingText.style.fontWeight = 'bold';
+            floatingText.style.textShadow = '2px 2px 2px rgba(0, 0, 0, 0.5)';
+            floatingText.style.pointerEvents = 'none';
+            gameContainer.appendChild(floatingText);
+            
+            // Animate floating up and fading out
+            let opacity = 1;
+            let posY = y;
+            
+            const floatInterval = setInterval(() => {
+                opacity -= 0.05;
+                posY -= 1; // Move the text upwards
+                floatingText.style.opacity = opacity;
+                floatingText.style.top = posY + 'px';
+                
+                if (opacity <= 0) {
+                    clearInterval(floatInterval);
+                    floatingText.remove();
+                }
+            }, 50);
+        }
+    </script>
+</body>
+</html>
